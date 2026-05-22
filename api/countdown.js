@@ -1,17 +1,10 @@
-const omggif = require('omggif');
-
 module.exports = function handler(req, res) {
   const width = 600;
   const height = 50;
   const frames = 60;
   const deadlineUTC = Date.UTC(2026, 4, 26, 7, 59, 59);
 
-  // GIF palette must be exactly 256 colors (power of 2)
-  const palette = new Array(256 * 3).fill(0);
-  // index 0 = background #BD0107
-  palette[0] = 0xBD; palette[1] = 0x01; palette[2] = 0x07;
-  // index 1 = white #FFFFFF
-  palette[3] = 0xFF; palette[4] = 0xFF; palette[5] = 0xFF;
+  function pad(n) { return String(n).padStart(2, '0'); }
 
   const FONT = {
     '0':['111','101','101','101','111'],
@@ -42,32 +35,122 @@ module.exports = function handler(req, res) {
     '|':['010','010','010','010','010'],
   };
 
-  function drawText(pixels, text, startX, startY) {
-    let x = startX;
+  function makePixels(text) {
+    const pixels = new Uint8Array(width * height); // 0 = red bg
+    let x = Math.floor((width - text.length * 6) / 2);
+    const y = Math.floor((height - 7) / 2);
     for (const ch of text.toUpperCase()) {
       const glyph = FONT[ch] || FONT[' '];
-      for (let row = 0; row < glyph.length; row++) {
-        for (let col = 0; col < glyph[row].length; col++) {
-          if (glyph[row][col] === '1') {
-            const px = x + col;
-            const py = startY + row;
-            if (px >= 0 && px < width && py >= 0 && py < height) {
-              pixels[py * width + px] = 1;
-            }
+      for (let row = 0; row < 7; row++) {
+        const bits = glyph[row] || '000';
+        for (let col = 0; col < 3; col++) {
+          if (bits[col] === '1') {
+            const px = x + col, py = y + row;
+            if (px >= 0 && px < width && py >= 0 && py < height)
+              pixels[py * width + px] = 1; // 1 = white
           }
         }
       }
       x += 6;
     }
+    return pixels;
   }
 
-  function pad(n) { return String(n).padStart(2, '0'); }
+  // LZW compress pixels with min code size 2
+  function lzwEncode(pixels) {
+    const minCodeSize = 2;
+    const clearCode = 1 << minCodeSize; // 4
+    const eofCode = clearCode + 1;     // 5
+    let codeSize = minCodeSize + 1;    // 3
+    let nextCode = eofCode + 1;        // 6
+    const maxCode = () => 1 << codeSize;
 
-  const buf = Buffer.alloc(width * height * frames * 4 + 1024);
-  const gif = new omggif.GifWriter(buf, width, height, { 
-    palette: palette, 
-    loop: 0 
-  });
+    const bytes = [];
+    let bitBuf = 0, bitLen = 0;
+
+    function emitCode(code) {
+      bitBuf |= code << bitLen;
+      bitLen += codeSize;
+      while (bitLen >= 8) {
+        bytes.push(bitBuf & 0xFF);
+        bitBuf >>= 8;
+        bitLen -= 8;
+      }
+    }
+
+    const table = new Map();
+    function tableKey(prefix, suf) { return prefix * 256 + suf; }
+
+    function reset() {
+      table.clear();
+      codeSize = minCodeSize + 1;
+      nextCode = eofCode + 1;
+    }
+
+    emitCode(clearCode);
+    reset();
+
+    let prefix = pixels[0];
+    for (let i = 1; i < pixels.length; i++) {
+      const suf = pixels[i];
+      const key = tableKey(prefix, suf);
+      if (table.has(key)) {
+        prefix = table.get(key);
+      } else {
+        emitCode(prefix);
+        if (nextCode < 4096) {
+          table.set(key, nextCode++);
+          if (nextCode > maxCode() && codeSize < 12) codeSize++;
+        } else {
+          emitCode(clearCode);
+          reset();
+        }
+        prefix = suf;
+      }
+    }
+    emitCode(prefix);
+    emitCode(eofCode);
+    if (bitLen > 0) bytes.push(bitBuf & 0xFF);
+
+    // Pack into sub-blocks
+    const out = [minCodeSize];
+    for (let i = 0; i < bytes.length; i += 255) {
+      const chunk = bytes.slice(i, i + 255);
+      out.push(chunk.length, ...chunk);
+    }
+    out.push(0); // block terminator
+    return Buffer.from(out);
+  }
+
+  const parts = [];
+
+  // GIF Header
+  parts.push(Buffer.from('GIF89a'));
+
+  // Logical Screen Descriptor
+  const lsd = Buffer.alloc(7);
+  lsd.writeUInt16LE(width, 0);
+  lsd.writeUInt16LE(height, 2);
+  lsd[4] = 0xF1; // Global color table flag, 4 colors (2^(1+1))
+  lsd[5] = 0;    // background color index
+  lsd[6] = 0;    // pixel aspect ratio
+  parts.push(lsd);
+
+  // Global Color Table: 4 colors (must be power of 2 = 4 entries = 12 bytes)
+  // 0: #BD0107 (red bg), 1: #FFFFFF (white), 2: #000000, 3: #000000
+  parts.push(Buffer.from([
+    0xBD, 0x01, 0x07, // 0 = red
+    0xFF, 0xFF, 0xFF, // 1 = white
+    0x00, 0x00, 0x00, // 2 = black (unused)
+    0x00, 0x00, 0x00, // 3 = black (unused)
+  ]));
+
+  // Netscape loop extension
+  parts.push(Buffer.from([
+    0x21, 0xFF, 0x0B,
+    ...Buffer.from('NETSCAPE2.0'),
+    0x03, 0x01, 0x00, 0x00, 0x00
+  ]));
 
   for (let i = 0; i < frames; i++) {
     const now = Date.now() + i * 1000;
@@ -77,23 +160,36 @@ module.exports = function handler(req, res) {
     const totalMin = Math.floor(totalSec / 60);
     const min = pad(totalMin % 60);
     const hrs = pad(Math.floor(totalMin / 60));
-
-    const pixels = new Uint8Array(width * height).fill(0);
     const text = `ENDS TONIGHT! | ${hrs} HR : ${min} MIN : ${sec} SEC`;
-    const textWidth = text.length * 6;
-    const startX = Math.floor((width - textWidth) / 2);
-    const startY = Math.floor((height - 7) / 2);
-    drawText(pixels, text, startX, startY);
 
-    gif.addFrame(0, 0, width, height, pixels, { 
-      delay: 100,
-      palette: palette
-    });
+    const delay = 100; // 1 second in GIF units (hundredths)
+
+    // Graphic Control Extension
+    const gce = Buffer.alloc(8);
+    gce[0] = 0x21; gce[1] = 0xF9; gce[2] = 0x04;
+    gce[3] = 0x00;
+    gce.writeUInt16LE(delay, 4);
+    gce[6] = 0x00; gce[7] = 0x00;
+    parts.push(gce);
+
+    // Image Descriptor
+    const id = Buffer.alloc(10);
+    id[0] = 0x2C;
+    id.writeUInt16LE(0, 1); id.writeUInt16LE(0, 3);
+    id.writeUInt16LE(width, 5); id.writeUInt16LE(height, 7);
+    id[9] = 0x00;
+    parts.push(id);
+
+    // Image Data
+    parts.push(lzwEncode(makePixels(text)));
   }
 
-  const data = buf.slice(0, gif.end());
+  // Trailer
+  parts.push(Buffer.from([0x3B]));
+
+  const gif = Buffer.concat(parts);
 
   res.setHeader('Content-Type', 'image/gif');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
-  res.send(data);
+  res.send(gif);
 };
