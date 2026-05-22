@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/countdown.py": {
+      "runtime": "vercel-python@3.0.7"
+    }
+  }
+}
