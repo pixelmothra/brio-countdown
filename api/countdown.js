@@ -1,20 +1,29 @@
-const { createCanvas } = require('canvas');
-const GIFEncoder = require('gif-encoder-2');
+const PureImage = require('pureimage');
+const GIFEncoder = require('gifencoder');
+const { PassThrough } = require('stream');
 
 module.exports = async function handler(req, res) {
   const width = 600;
   const height = 50;
   const frames = 60;
-
   const deadlineUTC = Date.UTC(2026, 4, 26, 7, 59, 59);
 
-  const encoder = new GIFEncoder(width, height, 'neuquant', true);
-  encoder.setDelay(1000);
-  encoder.setRepeat(0);
-  encoder.start();
+  const encoder = new GIFEncoder(width, height);
+  const stream = new PassThrough();
+  const chunks = [];
+  stream.on('data', chunk => chunks.push(chunk));
 
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext('2d');
+  encoder.createReadStream().pipe(stream);
+  encoder.start();
+  encoder.setRepeat(0);
+  encoder.setDelay(1000);
+  encoder.setQuality(10);
+
+  const fnt = PureImage.registerFont(
+    require.resolve('pureimage/src/fonts/Roboto-Regular.ttf'),
+    'Roboto'
+  );
+  await fnt.load();
 
   for (let i = 0; i < frames; i++) {
     const now = Date.now() + i * 1000;
@@ -25,13 +34,14 @@ module.exports = async function handler(req, res) {
     const min = String(totalMin % 60).padStart(2, '0');
     const hrs = String(Math.floor(totalMin / 60)).padStart(2, '0');
 
-    // Background
+    const img = PureImage.make(width, height);
+    const ctx = img.getContext('2d');
+
     ctx.fillStyle = '#BD0107';
     ctx.fillRect(0, 0, width, height);
 
-    // Text
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 18px sans-serif';
+    ctx.font = 'bold 18px Roboto';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
@@ -45,7 +55,8 @@ module.exports = async function handler(req, res) {
 
   encoder.finish();
 
-  const buffer = encoder.out.getData();
+  await new Promise(resolve => stream.on('end', resolve));
+  const buffer = Buffer.concat(chunks);
 
   res.setHeader('Content-Type', 'image/gif');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
