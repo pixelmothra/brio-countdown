@@ -2,7 +2,6 @@
   "name": "brio-countdown",
   "version": "1.0.0",
   "dependencies": {
-    "gifencoder": "2.0.1",
-    "pureimage": "0.4.0"
+    "omggif": "1.0.10"
   }
 }
