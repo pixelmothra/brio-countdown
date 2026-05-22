@@ -1,9 +1,9 @@
 module.exports = function handler(req, res) {
   const width = 600;
-  const height = 80;
+  const height = 60;
   const frames = 60;
   const deadlineUTC = Date.UTC(2026, 4, 26, 7, 59, 59);
-  const scale = 3;
+  const scale = 2;
 
   function pad(n) { return String(n).padStart(2, '0'); }
 
