@@ -20,7 +20,7 @@ class handler(BaseHTTPRequestHandler):
 
         frames = []
         for i in range(60):
-            secs = total_seconds + i
+            secs = total_seconds - i
             s = secs % 60
             m = (secs // 60) % 60
             h = secs // 3600
