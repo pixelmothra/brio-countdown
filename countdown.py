@@ -1,6 +1,7 @@
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timezone
 import io
+import os
 
 DEADLINE = datetime(2026, 5, 26, 7, 59, 59, tzinfo=timezone.utc)
 
@@ -9,9 +10,16 @@ def handler(request):
     diff = DEADLINE - now
     total_seconds = max(0, int(diff.total_seconds()))
 
+    font_path = os.path.join(os.path.dirname(__file__), '..', 'DMSans-VariableFont_opsz,wght.ttf')
+
+    try:
+        font = ImageFont.truetype(font_path, size=22)
+    except Exception as e:
+        font = ImageFont.load_default()
+
     frames = []
     for i in range(60):
-        secs = (total_seconds + i) 
+        secs = total_seconds + i
         s = secs % 60
         m = (secs // 60) % 60
         h = secs // 3600
@@ -20,11 +28,6 @@ def handler(request):
 
         img = Image.new("RGB", (600, 60), color=(189, 1, 7))
         draw = ImageDraw.Draw(img)
-
-        try:
-            font = ImageFont.truetype("DMSans-VariableFont_opsz,wght.ttf", size=22)
-        except:
-            font = ImageFont.load_default()
 
         bbox = draw.textbbox((0, 0), text, font=font)
         text_width = bbox[2] - bbox[0]
