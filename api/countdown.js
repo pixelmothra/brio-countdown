@@ -1,6 +1,8 @@
-const { ImageResponse } = require('@vercel/og');
+export const config = {
+  runtime: 'edge',
+};
 
-module.exports = async function handler(req, res) {
+export default async function handler(req) {
   const deadlineUTC = Date.UTC(2026, 4, 26, 7, 59, 59);
   const now = Date.now();
   const diff = Math.max(0, deadlineUTC - now);
@@ -11,7 +13,9 @@ module.exports = async function handler(req, res) {
   const min = String(totalMin % 60).padStart(2, '0');
   const hrs = String(Math.floor(totalMin / 60)).padStart(2, '0');
 
-  const image = new ImageResponse(
+  const { ImageResponse } = await import('@vercel/og');
+
+  return new ImageResponse(
     {
       type: 'div',
       props: {
@@ -33,8 +37,4 @@ module.exports = async function handler(req, res) {
     },
     { width: 600, height: 50 }
   );
-
-  res.setHeader('Content-Type', 'image/png');
-  res.setHeader('Cache-Control', 'no-store, max-age=0');
-  return res.send(Buffer.from(await image.arrayBuffer()));
-};
+}
