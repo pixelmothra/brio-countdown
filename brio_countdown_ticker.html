@@ -1,0 +1,59 @@
+<!-- BRIO MEMORIAL DAY SALE — COUNTDOWN TICKER (PST) -->
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@700;800;900&display=swap" rel="stylesheet">
+
+<div style="background-color: #BD0107; padding: 12px 20px; margin: 0; font-family: 'DM Sans', Arial, sans-serif; text-align: center;">
+  <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;">
+    <tr valign="middle">
+
+      <td style="padding-right: 20px;">
+        <span style="color: #ffffff; font-size: 15px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; font-family: 'DM Sans', Arial, sans-serif;">
+          ENDS TONIGHT!
+        </span>
+      </td>
+
+      <td style="padding-right: 20px;">
+        <span style="color: rgba(255,255,255,0.4); font-size: 20px;">|</span>
+      </td>
+
+      <td style="white-space: nowrap;">
+        <span style="color:#ffffff; font-size:22px; font-weight:900; font-family:'DM Sans',Arial,sans-serif; letter-spacing:1px;">
+          <span id="brio-hours">00</span>
+          <span style="font-size:11px; font-weight:700; letter-spacing:2px; opacity:0.8; margin: 0 8px 0 4px;">HR</span>
+          <span style="opacity:0.4; margin-right:10px;">:</span>
+          <span id="brio-minutes">00</span>
+          <span style="font-size:11px; font-weight:700; letter-spacing:2px; opacity:0.8; margin: 0 8px 0 4px;">MIN</span>
+          <span style="opacity:0.4; margin-right:10px;">:</span>
+          <span id="brio-seconds">00</span>
+          <span style="font-size:11px; font-weight:700; letter-spacing:2px; opacity:0.8; margin-left:4px;">SEC</span>
+        </span>
+      </td>
+
+    </tr>
+  </table>
+</div>
+
+<script>
+(function() {
+  // Deadline: May 25, 2026 11:59:59 PM PST = May 26 07:59:59 UTC
+  var deadlineUTC = Date.UTC(2026, 4, 26, 7, 59, 59);
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function tick() {
+    var diff = deadlineUTC - Date.now();
+    if (diff <= 0) {
+      document.getElementById('brio-hours').innerText = '00';
+      document.getElementById('brio-minutes').innerText = '00';
+      document.getElementById('brio-seconds').innerText = '00';
+      return;
+    }
+    var s = Math.floor(diff / 1000);
+    document.getElementById('brio-seconds').innerText = pad(s % 60);
+    var m = Math.floor(s / 60);
+    document.getElementById('brio-minutes').innerText = pad(m % 60);
+    document.getElementById('brio-hours').innerText = pad(Math.floor(m / 60));
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+<!-- END BRIO COUNTDOWN TICKER -->
