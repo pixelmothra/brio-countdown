@@ -35,7 +35,7 @@ class handler(BaseHTTPRequestHandler):
             font_bold = font_regular
 
         frames = []
-        for i in range(60):
+        for i in range(10):
             secs = total_seconds - i
             if secs < 0:
                 secs = 0
@@ -84,6 +84,6 @@ class handler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header('Content-Type', 'image/gif')
-        self.send_header('Cache-Control', 'no-store, max-age=0')
+        self.send_header('Cache-Control', 'public, max-age=60, s-maxage=60')
         self.end_headers()
         self.wfile.write(gif_data)
